@@ -1,108 +1,76 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Çizim Uygulaması</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Drawing</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
         canvas {
             border: 1px solid black;
-            display: block;
-            margin: 0 auto;
-        }
-        #toolbar {
-            text-align: center;
-            margin-bottom: 10px;
         }
     </style>
 </head>
 <body>
-    <div id="toolbar">
-        <input type="color" id="colorPicker">
-        <label for="lineWidth">Kalem Kalınlığı:</label>
-        <input type="range" id="lineWidth" min="1" max="20" value="5">
-    </div>
-    <canvas id="canvas"></canvas>
+    <canvas id="drawingCanvas" width="800" height="600"></canvas>
     <script>
-        var canvas = document.getElementById('canvas');
-        var context = canvas.getContext('2d');
-        var drawing = false;
-        var colorPicker = document.getElementById('colorPicker');
-        var lineWidth = document.getElementById('lineWidth');
-        var current = {
-            color: colorPicker.value,
-            width: lineWidth.value,
-            x: 0,
-            y: 0
-        };
+        document.addEventListener("DOMContentLoaded", () => {
+            const canvas = document.getElementById('drawingCanvas');
+            const context = canvas.getContext('2d');
+            const socket = io.connect('http://' + document.domain + ':' + location.port);
 
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
+            let drawing = false;
 
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
+            canvas.addEventListener('mousedown', (e) => {
+                drawing = true;
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                context.beginPath();
+                context.moveTo(x, y);
 
-        var socket = io.connect(window.location.protocol + '//' + window.location.host);
+                // Yayınlamak için
+                socket.emit('draw_event', {
+                    x: x,
+                    y: y,
+                    type: 'begin'
+                });
+            });
 
-        canvas.addEventListener('mousedown', function(e) {
-            drawing = true;
-            current.color = colorPicker.value;
-            current.width = lineWidth.value;
-            current.x = e.clientX - canvas.getBoundingClientRect().left;
-            current.y = e.clientY - canvas.getBoundingClientRect().top;
-            context.beginPath();
-            context.moveTo(current.x, current.y);
-            socket.emit('start', { x: current.x, y: current.y, color: current.color, width: current.width });
-        });
-
-        canvas.addEventListener('mousemove', function(e) {
-            if (!drawing) return;
-            var x = e.clientX - canvas.getBoundingClientRect().left;
-            var y = e.clientY - canvas.getBoundingClientRect().top;
-            drawLine(current.x, current.y, x, y, current.color, current.width);
-            current.x = x;
-            current.y = y;
-            socket.emit('draw', { x: x, y: y });
-        });
-
-        canvas.addEventListener('mouseup', function() {
-            if (drawing) {
+            canvas.addEventListener('mouseup', (e) => {
                 drawing = false;
-                socket.emit('end');
-            }
-        });
+                context.closePath();
+            });
 
-        canvas.addEventListener('mouseout', function() {
-            if (drawing) {
-                drawing = false;
-                socket.emit('end');
-            }
-        });
+            canvas.addEventListener('mousemove', (e) => {
+                if (!drawing) return;
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
 
-        function drawLine(x0, y0, x1, y1, color, width) {
-            context.beginPath();
-            context.moveTo(x0, y0);
-            context.lineTo(x1, y1);
-            context.strokeStyle = color;
-            context.lineWidth = width;
-            context.stroke();
-            context.closePath();
-        }
+                context.lineTo(x, y);
+                context.stroke();
+                context.beginPath();
+                context.moveTo(x, y);
 
-        socket.on('start', function(data) {
-            context.beginPath();
-            context.moveTo(data.x, data.y);
-        });
+                socket.emit('draw_event', {
+                    x: x,
+                    y: y,
+                    type: 'draw'
+                });
+            });
 
-        socket.on('draw', function(data) {
-            drawLine(current.x, current.y, data.x, data.y, data.color, data.width);
-            current.x = data.x;
-            current.y = data.y;
-        });
-
-        socket.on('end', function() {
-            context.beginPath();
+            socket.on('broadcast_draw', (data) => {
+                if (data.type === 'begin') {
+                    context.beginPath();
+                    context.moveTo(data.x, data.y);
+                } else if (data.type === 'draw') {
+                    context.lineTo(data.x, data.y);
+                    context.stroke();
+                    context.beginPath();
+                    context.moveTo(data.x, data.y);
+                }
+            });
         });
     </script>
 </body>
