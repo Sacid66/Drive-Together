@@ -19,7 +19,7 @@
             const context = canvas.getContext('2d');
             const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
             const socketUrl = protocol + '//' + location.host;
-            const socket = io.connect(socketUrl);
+            const socket = io.connect(socketUrl, { transports: ['websocket'] });
 
             let drawing = false;
 
