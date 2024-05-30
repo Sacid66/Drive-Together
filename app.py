@@ -1,9 +1,11 @@
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 import os
+import eventlet
+eventlet.monkey_patch()
 
 app = Flask(__name__)
-socketio = SocketIO(app, async_mode='gevent')
+socketio = SocketIO(app, async_mode='eventlet')
 
 @app.route('/')
 def index():
