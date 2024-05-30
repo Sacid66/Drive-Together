@@ -30,7 +30,9 @@
         var lineWidth = document.getElementById('lineWidth');
         var current = {
             color: colorPicker.value,
-            width: lineWidth.value
+            width: lineWidth.value,
+            x: 0,
+            y: 0
         };
 
         function resizeCanvas() {
@@ -49,6 +51,8 @@
             current.width = lineWidth.value;
             current.x = e.clientX - canvas.getBoundingClientRect().left;
             current.y = e.clientY - canvas.getBoundingClientRect().top;
+            context.beginPath();
+            context.moveTo(current.x, current.y);
             socket.emit('start', { x: current.x, y: current.y, color: current.color, width: current.width });
         });
 
@@ -56,38 +60,45 @@
             if (!drawing) return;
             var x = e.clientX - canvas.getBoundingClientRect().left;
             var y = e.clientY - canvas.getBoundingClientRect().top;
-            draw(x, y);
+            drawLine(current.x, current.y, x, y, current.color, current.width);
+            current.x = x;
+            current.y = y;
             socket.emit('draw', { x: x, y: y });
         });
 
         canvas.addEventListener('mouseup', function() {
-            drawing = false;
-            socket.emit('end');
+            if (drawing) {
+                drawing = false;
+                socket.emit('end');
+            }
         });
 
         canvas.addEventListener('mouseout', function() {
-            drawing = false;
+            if (drawing) {
+                drawing = false;
+                socket.emit('end');
+            }
         });
 
-        function draw(x, y) {
-            context.lineWidth = current.width;
-            context.lineCap = 'round';
-            context.strokeStyle = current.color;
-            context.lineTo(x, y);
-            context.stroke();
+        function drawLine(x0, y0, x1, y1, color, width) {
             context.beginPath();
-            context.moveTo(x, y);
+            context.moveTo(x0, y0);
+            context.lineTo(x1, y1);
+            context.strokeStyle = color;
+            context.lineWidth = width;
+            context.stroke();
+            context.closePath();
         }
 
         socket.on('start', function(data) {
-            current.color = data.color;
-            current.width = data.width;
             context.beginPath();
             context.moveTo(data.x, data.y);
         });
 
         socket.on('draw', function(data) {
-            draw(data.x, data.y);
+            drawLine(current.x, current.y, data.x, data.y, data.color, data.width);
+            current.x = data.x;
+            current.y = data.y;
         });
 
         socket.on('end', function() {
